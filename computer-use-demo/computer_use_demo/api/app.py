@@ -4,7 +4,6 @@ Sets up the app with CORS, lifespan events, route registration,
 and static file serving for the frontend and noVNC.
 """
 
-import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -14,17 +13,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
 
-from . import database as db
-from .display_manager import display_manager
-from .session_manager import session_manager
+from computer_use_demo.config.settings import settings
+from computer_use_demo import db
+from computer_use_demo.services.display import display_service
+from computer_use_demo.services.session import session_service
+from computer_use_demo.utils.logger import setup_logger
 from .routes import sessions, agent, vm, files
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-)
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 
 
 @asynccontextmanager
@@ -48,23 +44,23 @@ async def lifespan(app: FastAPI):
 
     # Shutdown
     logger.info("Shutting down...")
-    await session_manager.shutdown()
-    await display_manager.release_all()
+    await session_service.shutdown()
+    await display_service.release_all()
     await db.close_db()
     logger.info("Shutdown complete")
 
 
 app = FastAPI(
-    title="Computer Use API",
+    title=settings.APP_NAME,
     description="Backend API for Claude Computer Use agent sessions with real-time streaming",
-    version="1.0.0",
+    version=settings.API_VERSION,
     lifespan=lifespan,
 )
 
 # CORS — allow all for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -112,7 +108,7 @@ async def health():
 
     return {
         "status": "healthy",
-        "active_sessions": display_manager.active_count,
+        "active_sessions": display_service.active_count,
         "database": {
             "pool_size": pool_stats.get("pool_size", 0) if pool_stats else 0,
             "available": pool_stats.get("available", 0) if pool_stats else 0,
