@@ -9,6 +9,7 @@ import asyncio
 from datetime import datetime, timezone
 from typing import Any
 
+from computer_use_demo.config.settings import settings
 from computer_use_demo.utils.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -34,7 +35,17 @@ class EventPublisher:
         """
         async with self._lock:
             self._event_queues[session_id] = event_queue
-            logger.debug(f"Registered event queue for session: {session_id}")
+
+            if settings.ENABLE_PERFORMANCE_LOGGING:
+                logger.info(
+                    "Event queue registered",
+                    extra={
+                        "extra_fields": {
+                            "session_id": session_id,
+                            "total_subscribers": len(self._event_queues),
+                        }
+                    }
+                )
 
     async def unregister_session(self, session_id: str) -> None:
         """Unregister an event queue for a session.
@@ -96,6 +107,18 @@ class EventPublisher:
             "timestamp": datetime.now(timezone.utc).isoformat(),
         }
         await event_queue.put(event)
+
+        if settings.ENABLE_PERFORMANCE_LOGGING:
+            logger.debug(
+                f"Event published: {event_type}",
+                extra={
+                    "extra_fields": {
+                        "event_type": event_type,
+                        "queue_size": event_queue.qsize(),
+                        "subscriber_count": self.get_subscriber_count(),
+                    }
+                }
+            )
 
     async def signal_end(self, session_id: str, event_queue: asyncio.Queue | None = None) -> None:
         """Signal the end of events for a session.

@@ -7,6 +7,7 @@ streams events to connected clients via SSE.
 
 import asyncio
 import os
+import time
 from typing import Any, cast
 
 import httpx
@@ -41,6 +42,7 @@ from computer_use_demo.schemas.models import SSEEventType
 from computer_use_demo.services.session.active_session import ActiveSession
 from computer_use_demo.tools import TOOL_GROUPS_BY_VERSION, ToolResult
 from computer_use_demo.utils.logger import setup_logger
+from computer_use_demo.utils.log_context import set_session_id
 
 logger = setup_logger(__name__)
 
@@ -156,12 +158,50 @@ class AgentRunner:
             use_gemini = settings.is_using_gemini()
 
             if use_gemini:
-                logger.info("Using Gemini API")
+                api_start_time = time.time()
+
+                logger.info(
+                    "Gemini API request starting",
+                    extra={
+                        "extra_fields": {
+                            "session_id": active.session_id,
+                            "provider": "gemini",
+                            "message_count": len(messages),
+                        }
+                    }
+                )
+
                 from computer_use_demo.api.gemini_wrapper import run_gemini_sampling
                 try:
                     # Pass system prompt so Gemini knows it has tools
                     response_params = await run_gemini_sampling(messages, tool_collection, api_key, system=system)
+
+                    api_duration = time.time() - api_start_time
+                    logger.info(
+                        "Gemini API call completed",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "gemini",
+                                "duration_ms": round(api_duration * 1000, 2),
+                            }
+                        }
+                    )
+
                 except Exception as e:
+                    api_duration = time.time() - api_start_time
+                    logger.error(
+                        "Gemini API call failed",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "gemini",
+                                "duration_ms": round(api_duration * 1000, 2),
+                                "error": str(e),
+                            }
+                        }
+                    )
+
                     import traceback
                     traceback.print_exc()
                     await self._push_event(
@@ -171,7 +211,20 @@ class AgentRunner:
                     return messages
                 messages.append({"role": "assistant", "content": response_params})
             else:
-                logger.info(f"Using Anthropic API with model: {settings.ANTHROPIC_MODEL}")
+                api_start_time = time.time()
+
+                logger.info(
+                    "Anthropic API request starting",
+                    extra={
+                        "extra_fields": {
+                            "session_id": active.session_id,
+                            "provider": "anthropic",
+                            "model": settings.ANTHROPIC_MODEL,
+                            "message_count": len(messages),
+                        }
+                    }
+                )
+
                 print(f"[DEBUG] Using Anthropic API with model: {settings.ANTHROPIC_MODEL}", flush=True)
                 print(f"[DEBUG] API Key prefix: {api_key[:20]}...", flush=True)
                 print(f"[DEBUG] Base URL: {settings.ANTHROPIC_BASE_URL or 'default'}", flush=True)
@@ -185,15 +238,78 @@ class AgentRunner:
                         betas=betas,
                     )
                     print(f"[DEBUG] Got response from Anthropic API", flush=True)
+
+                    api_duration = time.time() - api_start_time
+                    response = raw_response.parse()
+
+                    logger.info(
+                        "Anthropic API call completed",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "anthropic",
+                                "model": settings.ANTHROPIC_MODEL,
+                                "duration_ms": round(api_duration * 1000, 2),
+                                "stop_reason": response.stop_reason,
+                                "input_tokens": response.usage.input_tokens,
+                                "output_tokens": response.usage.output_tokens,
+                            }
+                        }
+                    )
+
                 except (APIStatusError, APIResponseValidationError) as e:
+                    api_duration = time.time() - api_start_time
+
+                    logger.error(
+                        "Anthropic API call failed",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "anthropic",
+                                "duration_ms": round(api_duration * 1000, 2),
+                                "status_code": getattr(e, 'status_code', None),
+                                "error": str(e),
+                            }
+                        }
+                    )
+
                     print(f"[DEBUG] APIStatusError: {e}", flush=True)
                     await self._on_api_response(active, e.request, e.response, e)
                     return messages
                 except APIError as e:
+                    api_duration = time.time() - api_start_time
+
+                    logger.error(
+                        "Anthropic API error",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "anthropic",
+                                "duration_ms": round(api_duration * 1000, 2),
+                                "error": str(e),
+                            }
+                        }
+                    )
+
                     print(f"[DEBUG] APIError: {e}", flush=True)
                     await self._on_api_response(active, e.request, e.body, e)
                     return messages
                 except Exception as e:
+                    api_duration = time.time() - api_start_time
+
+                    logger.exception(
+                        "Anthropic API exception",
+                        extra={
+                            "extra_fields": {
+                                "session_id": active.session_id,
+                                "provider": "anthropic",
+                                "duration_ms": round(api_duration * 1000, 2),
+                                "error_type": type(e).__name__,
+                                "error": str(e),
+                            }
+                        }
+                    )
+
                     print(f"[DEBUG] Unexpected error: {type(e).__name__}: {e}", flush=True)
                     import traceback
                     traceback.print_exc()
@@ -210,7 +326,6 @@ class AgentRunner:
                     None,
                 )
 
-                response = raw_response.parse()
                 response_params = _response_to_params(response)
                 messages.append({"role": "assistant", "content": response_params})
 

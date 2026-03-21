@@ -6,9 +6,10 @@ from datetime import datetime, timezone
 from typing import Any
 
 from computer_use_demo.db.database import get_connection
+from computer_use_demo.db.query_logger import log_query_execution
 from computer_use_demo.utils.logger import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, "database")
 
 
 # --- Session Repository ---
@@ -24,12 +25,23 @@ async def create_session(
     title = title or f"Session {session_id[:8]}"
 
     async with get_connection() as db:
-        await db.execute(
+        await log_query_execution(
+            db,
             """INSERT INTO sessions (id, title, status, display_num, vnc_port, created_at, updated_at)
                VALUES (?, ?, 'created', ?, ?, ?, ?)""",
             (session_id, title, display_num, vnc_port, now, now),
         )
         await db.commit()
+
+    logger.info(
+        "Session created in database",
+        extra={
+            "extra_fields": {
+                "session_id": session_id,
+                "title": title,
+            }
+        }
+    )
 
     return {
         "id": session_id,
