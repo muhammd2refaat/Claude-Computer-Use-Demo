@@ -18,6 +18,7 @@ from computer_use_demo import db
 from computer_use_demo.services.display import display_service
 from computer_use_demo.services.session import session_service
 from computer_use_demo.utils.logger import setup_logger
+from computer_use_demo.api.middleware import RequestLoggingMiddleware
 from .routes import sessions, agent, vm, files
 
 logger = setup_logger(__name__)
@@ -56,6 +57,9 @@ app = FastAPI(
     version=settings.API_VERSION,
     lifespan=lifespan,
 )
+
+# Add request logging middleware (BEFORE CORS for proper ordering)
+app.add_middleware(RequestLoggingMiddleware)
 
 # CORS — allow all for development
 app.add_middleware(
