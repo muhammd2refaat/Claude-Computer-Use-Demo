@@ -10,6 +10,7 @@ Features:
 
 import asyncio
 import json
+import time
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -20,7 +21,7 @@ import aiosqlite
 from computer_use_demo.config.settings import settings
 from computer_use_demo.utils.logger import get_logger
 
-logger = get_logger(__name__)
+logger = get_logger(__name__, "database")
 
 
 class ConnectionPool:
@@ -68,6 +69,7 @@ class ConnectionPool:
 
     async def _create_connection(self) -> aiosqlite.Connection:
         """Create a new database connection with optimized settings."""
+        start_time = time.time()
         conn = await aiosqlite.connect(self.db_path)
         conn.row_factory = aiosqlite.Row
 
@@ -78,8 +80,20 @@ class ConnectionPool:
         await conn.execute("PRAGMA cache_size=-64000")   # 64MB cache
         await conn.execute("PRAGMA busy_timeout=30000")  # 30s busy timeout
 
+        duration = time.time() - start_time
         self._stats["created"] += 1
-        logger.debug(f"Created new database connection (total: {self._size + 1})")
+
+        if settings.ENABLE_PERFORMANCE_LOGGING:
+            logger.info(
+                "Database connection created",
+                extra={
+                    "extra_fields": {
+                        "connection_time_ms": round(duration * 1000, 2),
+                        "total_connections": self._size + 1,
+                        "pool_size": self._size,
+                    }
+                }
+            )
         return conn
 
     async def _check_connection_health(self, conn: aiosqlite.Connection) -> bool:
@@ -132,6 +146,7 @@ class ConnectionPool:
             await self.initialize()
 
         conn = None
+        acquire_start = time.time()
 
         try:
             # Try to get an existing connection from the pool
@@ -172,7 +187,22 @@ class ConnectionPool:
                 async with self._lock:
                     self._size += 1
 
+            acquire_duration = time.time() - acquire_start
             self._stats["acquired"] += 1
+
+            if settings.ENABLE_PERFORMANCE_LOGGING:
+                logger.debug(
+                    "Connection acquired",
+                    extra={
+                        "extra_fields": {
+                            "acquire_time_ms": round(acquire_duration * 1000, 2),
+                            "pool_size": self._size,
+                            "available": self._pool.qsize(),
+                            "in_use": self._size - self._pool.qsize(),
+                        }
+                    }
+                )
+
             yield conn
 
         finally:

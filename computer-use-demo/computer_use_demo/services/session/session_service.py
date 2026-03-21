@@ -19,6 +19,8 @@ from computer_use_demo.services.display import display_service, DisplayAllocatio
 from computer_use_demo.services.session.active_session import ActiveSession
 from computer_use_demo.tools import TOOL_GROUPS_BY_VERSION, ToolCollection
 from computer_use_demo.utils.logger import setup_logger
+from computer_use_demo.utils.log_decorators import log_async_operation
+from computer_use_demo.utils.log_context import set_session_id
 
 logger = setup_logger(__name__)
 
@@ -36,6 +38,7 @@ class SessionService:
         self._lock = asyncio.Lock()
         self._env_lock = asyncio.Lock()
 
+    @log_async_operation("create_session", log_result=True)
     async def create_session(self, title: str | None = None) -> dict:
         """Create a new session with its own virtual display and VNC.
 
@@ -50,6 +53,9 @@ class SessionService:
             display_num=allocation.display_num,
             vnc_port=allocation.ws_port,
         )
+
+        # Set session ID in logging context
+        set_session_id(session["id"])
 
         # Pre-create tools with the correct display environment
         tool_collection = await self._create_tools_for_display(
@@ -69,7 +75,14 @@ class SessionService:
             self._active_sessions[session["id"]] = active
 
         logger.info(
-            f"Session {session['id']} created with display :{allocation.display_num}"
+            f"Session {session['id']} created with display :{allocation.display_num}",
+            extra={
+                "extra_fields": {
+                    "session_id": session["id"],
+                    "display_num": allocation.display_num,
+                    "vnc_port": allocation.ws_port,
+                }
+            }
         )
         return session
 
@@ -108,8 +121,11 @@ class SessionService:
 
         return tool_collection
 
+    @log_async_operation("delete_session")
     async def delete_session(self, session_id: str) -> bool:
         """Delete a session and clean up its resources."""
+        set_session_id(session_id)
+
         async with self._lock:
             active = self._active_sessions.pop(session_id, None)
 
@@ -131,12 +147,15 @@ class SessionService:
         # Delete from DB
         return await db.delete_session(session_id)
 
+    @log_async_operation("restore_session")
     async def restore_session(self, session_id: str) -> dict:
         """Restore a session from DB (reactivate it).
 
         This is used when a session exists in DB but not in active memory
         (e.g., after server restart).
         """
+        set_session_id(session_id)
+
         # Check if already active
         if session_id in self._active_sessions:
             return await self.get_session_info(session_id)
@@ -184,7 +203,15 @@ class SessionService:
         # Update status to idle (restored)
         await db.update_session_status(session_id, "idle")
 
-        logger.info(f"Restored session {session_id} with new display :{allocation.display_num}")
+        logger.info(
+            f"Restored session {session_id} with new display :{allocation.display_num}",
+            extra={
+                "extra_fields": {
+                    "display_num": allocation.display_num,
+                    "message_count": len(anthropic_messages),
+                }
+            }
+        )
 
         # Return updated session info
         return await db.get_session(session_id)

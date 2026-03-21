@@ -16,7 +16,7 @@ class Settings:
     # Anthropic API
     ANTHROPIC_API_KEY: str = field(default_factory=lambda: os.getenv("ANTHROPIC_API_KEY", ""))
     ANTHROPIC_BASE_URL: str = field(default_factory=lambda: os.getenv("ANTHROPIC_BASE_URL", ""))
-    ANTHROPIC_MODEL: str = field(default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929"))
+    ANTHROPIC_MODEL: str = field(default_factory=lambda: os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"))
 
     # Gemini API (alternative)
     GEMINI_API_KEY: str = field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
@@ -47,6 +47,24 @@ class Settings:
 
     # Logging
     LOG_LEVEL: str = field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
+    LOG_FORMAT: str = field(default_factory=lambda: os.getenv("LOG_FORMAT", "dual"))  # console, json, or dual
+    LOG_DIR: str = field(default_factory=lambda: os.getenv("LOG_DIR", "/data/logs"))
+    LOG_MAX_SIZE_MB: int = field(default_factory=lambda: int(os.getenv("LOG_MAX_SIZE_MB", "10")))
+    LOG_BACKUP_COUNT: int = field(default_factory=lambda: int(os.getenv("LOG_BACKUP_COUNT", "5")))
+
+    # Logging Feature Flags
+    ENABLE_PERFORMANCE_LOGGING: bool = field(
+        default_factory=lambda: os.getenv("ENABLE_PERFORMANCE_LOGGING", "true").lower() == "true"
+    )
+    ENABLE_DATABASE_QUERY_LOGGING: bool = field(
+        default_factory=lambda: os.getenv("ENABLE_DATABASE_QUERY_LOGGING", "true").lower() == "true"
+    )
+    ENABLE_API_REQUEST_LOGGING: bool = field(
+        default_factory=lambda: os.getenv("ENABLE_API_REQUEST_LOGGING", "true").lower() == "true"
+    )
+    ENABLE_TOOL_EXECUTION_LOGGING: bool = field(
+        default_factory=lambda: os.getenv("ENABLE_TOOL_EXECUTION_LOGGING", "true").lower() == "true"
+    )
 
     def get_api_key(self) -> str:
         """Get the primary API key (Anthropic or Gemini)."""

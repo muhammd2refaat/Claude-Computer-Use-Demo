@@ -15,8 +15,9 @@ from computer_use_demo.schemas import (
 from computer_use_demo.services.agent import agent_service
 from computer_use_demo.services.session import session_service
 from computer_use_demo.utils.logger import setup_logger
+from computer_use_demo.utils.log_context import set_session_id
 
-logger = setup_logger(__name__)
+logger = setup_logger(__name__, "api")
 router = APIRouter(prefix="/api/sessions/{session_id}", tags=["agent"])
 
 
@@ -68,6 +69,19 @@ async def stream_events(session_id: str, request: Request):
     - error: Error messages
     - done: Agent loop completed
     """
+    set_session_id(session_id)
+
+    # Log SSE connection establishment
+    logger.info(
+        "SSE connection established",
+        extra={
+            "extra_fields": {
+                "session_id": session_id,
+                "client_ip": request.client.host if request.client else "unknown",
+            }
+        }
+    )
+
     try:
         # Verify session exists in DB
         session = await session_service.get_session_info(session_id)
@@ -85,10 +99,22 @@ async def stream_events(session_id: str, request: Request):
         raise HTTPException(status_code=404, detail="Session not found")
 
     async def event_generator():
+        event_count = 0
         try:
             async for event in agent_service.get_event_stream(session_id):
                 if await request.is_disconnected():
+                    logger.info(
+                        "SSE client disconnected",
+                        extra={
+                            "extra_fields": {
+                                "session_id": session_id,
+                                "events_sent": event_count,
+                            }
+                        }
+                    )
                     break
+
+                event_count += 1
                 yield {
                     "event": event["type"],
                     "data": json.dumps(event["data"]),
@@ -101,6 +127,27 @@ async def stream_events(session_id: str, request: Request):
             }
         except asyncio.CancelledError:
             pass
+        except Exception as e:
+            logger.exception(
+                "SSE stream error",
+                extra={
+                    "extra_fields": {
+                        "session_id": session_id,
+                        "events_sent": event_count,
+                        "error": str(e),
+                    }
+                }
+            )
+        finally:
+            logger.info(
+                "SSE connection closed",
+                extra={
+                    "extra_fields": {
+                        "session_id": session_id,
+                        "total_events": event_count,
+                    }
+                }
+            )
 
     return EventSourceResponse(event_generator())
 
