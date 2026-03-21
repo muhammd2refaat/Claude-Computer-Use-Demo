@@ -18,6 +18,7 @@ services:
       - apparmor:unconfined
     volumes:
       - session-data:/data        # SQLite DB persistence
+      - ./logs:/data/logs         # Logs accessible locally
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
