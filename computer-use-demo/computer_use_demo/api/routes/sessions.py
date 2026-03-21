@@ -24,7 +24,7 @@ def _session_to_response(session: dict) -> SessionResponse:
         vnc_info = VNCInfo(
             display_num=session["display_num"],
             vnc_port=session["vnc_port"],
-            novnc_url=f"/vnc/?host=localhost&port={session['vnc_port']}&autoconnect=true&resize=scale",
+            novnc_url=f"/vnc/?port={session['vnc_port']}&autoconnect=true&resize=scale",
         )
     return SessionResponse(
         id=session["id"],

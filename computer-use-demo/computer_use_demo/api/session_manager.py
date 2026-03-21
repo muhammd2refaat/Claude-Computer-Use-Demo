@@ -36,7 +36,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Default model configuration
-DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001")
+DEFAULT_MODEL = os.environ.get("ANTHROPIC_MODEL", "claude-sonnet-4-5-20250929")
 DEFAULT_PROVIDER = APIProvider.ANTHROPIC
 DEFAULT_TOOL_VERSION: ToolVersion = "computer_use_20250124"
 DEFAULT_MAX_TOKENS = 4096 * 4
@@ -162,11 +162,89 @@ class SessionManager:
         # Delete from DB
         return await db.delete_session(session_id)
 
+    async def stop_agent(self, session_id: str) -> bool:
+        """Stop a running agent task."""
+        active = self._active_sessions.get(session_id)
+        if not active:
+            return False
+
+        if active.agent_task and not active.agent_task.done():
+            active.agent_task.cancel()
+            active.is_running = False
+            await db.update_session_status(session_id, SessionStatus.IDLE)
+            await self._push_event(active, SSEEventType.STATUS, {"status": "stopped"})
+            logger.info(f"Stopped agent task for session {session_id}")
+            return True
+
+        return False
+
+    async def restore_session(self, session_id: str) -> dict:
+        """Restore a session from DB (reactivate it).
+
+        This is used when a session exists in DB but not in active memory
+        (e.g., after server restart).
+        """
+        # Check if already active
+        if session_id in self._active_sessions:
+            return await self.get_session_info(session_id)
+
+        # Get from DB
+        session = await db.get_session(session_id)
+        if not session:
+            raise KeyError(f"Session {session_id} not found in database")
+
+        # Allocate new display (old one is gone after restart)
+        allocation = await display_manager.allocate_display()
+
+        # Update DB with new display info
+        await db.update_session_display(
+            session_id,
+            display_num=allocation.display_num,
+            vnc_port=allocation.ws_port
+        )
+
+        # Create tools
+        tool_collection = await self._create_tools_for_display(allocation.display_num)
+
+        # Load historical messages
+        messages = await db.get_messages(session_id)
+        anthropic_messages = []
+        for msg in messages:
+            if msg["role"] == "user":
+                anthropic_messages.append({
+                    "role": "user",
+                    "content": [BetaTextBlockParam(type="text", text=msg["content"])]
+                })
+
+        # Create active session
+        active = ActiveSession(
+            session_id=session_id,
+            display=allocation,
+            messages=anthropic_messages,
+            event_queue=asyncio.Queue(),
+            tool_collection=tool_collection,
+        )
+
+        async with self._lock:
+            self._active_sessions[session_id] = active
+
+        # Update status to idle (restored)
+        await db.update_session_status(session_id, SessionStatus.IDLE)
+
+        logger.info(f"Restored session {session_id} with new display :{allocation.display_num}")
+
+        # Return updated session info
+        return await db.get_session(session_id)
+
     async def send_message(self, session_id: str, text: str) -> str:
         """Send a user message to an active session, triggering the agent loop.
 
         Returns the message ID.
         """
+        # Try to restore session if not active
+        if session_id not in self._active_sessions:
+            await self.restore_session(session_id)
+
         active = self._get_active_session(session_id)
 
         if active.is_running:
@@ -234,6 +312,10 @@ class SessionManager:
         if not active:
             raise KeyError(f"Session {session_id} is not active")
         return active
+
+    def is_active(self, session_id: str) -> bool:
+        """Check if a session is active in memory."""
+        return session_id in self._active_sessions
 
     # --- Agent Loop Integration ---
 

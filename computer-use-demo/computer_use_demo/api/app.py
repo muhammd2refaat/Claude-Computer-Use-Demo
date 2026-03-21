@@ -17,7 +17,7 @@ from fastapi.responses import FileResponse
 from . import database as db
 from .display_manager import display_manager
 from .session_manager import session_manager
-from .routes import sessions, agent, vm
+from .routes import sessions, agent, vm, files
 
 # Configure logging
 logging.basicConfig(
@@ -69,6 +69,7 @@ app.add_middleware(
 app.include_router(sessions.router)
 app.include_router(agent.router)
 app.include_router(vm.router)
+app.include_router(files.router)
 
 # Mount noVNC static files (served from Docker image)
 novnc_path = Path("/opt/noVNC")
@@ -88,6 +89,15 @@ async def root():
     if index_path.exists():
         return FileResponse(str(index_path))
     return {"message": "Computer Use API", "docs": "/docs"}
+
+
+@app.get("/test")
+async def concurrent_test():
+    """Serve the concurrent sessions test page."""
+    test_path = frontend_path / "concurrent_test.html"
+    if test_path.exists():
+        return FileResponse(str(test_path))
+    return {"message": "Test page not found", "note": "Create frontend/concurrent_test.html"}
 
 
 @app.get("/health")

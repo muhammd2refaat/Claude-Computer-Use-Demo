@@ -68,10 +68,18 @@ async def stream_events(session_id: str, request: Request):
     - done: Agent loop completed
     """
     try:
-        # Verify session exists
+        # Verify session exists in DB
         session = await session_manager.get_session_info(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
+
+        # Auto-restore session if not active in memory
+        if not session_manager.is_active(session_id):
+            try:
+                await session_manager.restore_session(session_id)
+            except Exception as e:
+                logger.warning(f"Could not restore session {session_id}: {e}")
+                # Still proceed — we'll just yield an empty stream
     except KeyError:
         raise HTTPException(status_code=404, detail="Session not found")
 
@@ -85,11 +93,36 @@ async def stream_events(session_id: str, request: Request):
                     "data": json.dumps(event["data"]),
                 }
         except KeyError:
+            # Session not active — just end the stream cleanly
             yield {
-                "event": "error",
-                "data": json.dumps({"message": "Session not found"}),
+                "event": "status",
+                "data": json.dumps({"status": "idle"}),
             }
         except asyncio.CancelledError:
             pass
 
     return EventSourceResponse(event_generator())
+
+
+@router.post("/stop", status_code=200)
+async def stop_agent(session_id: str):
+    """Stop a running agent task for this session."""
+    try:
+        success = await session_manager.stop_agent(session_id)
+        if success:
+            return {"status": "stopped", "message": "Agent task cancelled"}
+        else:
+            return {"status": "idle", "message": "No running task to stop"}
+    except KeyError:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+
+@router.post("/restore", status_code=200)
+async def restore_session(session_id: str):
+    """Restore a session from database (reactivate it after restart)."""
+    try:
+        session = await session_manager.restore_session(session_id)
+        return {"status": "restored", "session": session}
+    except KeyError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
