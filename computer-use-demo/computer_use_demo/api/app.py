@@ -37,7 +37,12 @@ async def lifespan(app: FastAPI):
     os.makedirs("/data", exist_ok=True)
 
     await db.init_db()
-    logger.info("Database initialized")
+    pool_stats = db.get_pool_stats()
+    if pool_stats:
+        logger.info(
+            f"Database connection pool initialized: "
+            f"size={pool_stats.get('pool_size', 0)}, max={pool_stats.get('max_size', 10)}"
+        )
 
     yield
 
@@ -102,8 +107,18 @@ async def concurrent_test():
 
 @app.get("/health")
 async def health():
-    """Health check endpoint."""
+    """Health check endpoint with connection pool statistics."""
+    pool_stats = db.get_pool_stats()
+
     return {
         "status": "healthy",
         "active_sessions": display_manager.active_count,
+        "database": {
+            "pool_size": pool_stats.get("pool_size", 0) if pool_stats else 0,
+            "available": pool_stats.get("available", 0) if pool_stats else 0,
+            "in_use": pool_stats.get("in_use", 0) if pool_stats else 0,
+            "max_size": pool_stats.get("max_size", 10) if pool_stats else 10,
+            "total_acquired": pool_stats.get("acquired", 0) if pool_stats else 0,
+            "health_checks": pool_stats.get("health_checks", 0) if pool_stats else 0,
+        } if pool_stats else None,
     }
