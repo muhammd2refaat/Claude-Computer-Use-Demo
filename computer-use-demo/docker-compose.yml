@@ -1,0 +1,28 @@
+services:
+  computer-use:
+    build: .
+    ports:
+      - "8000:8000"         # FastAPI
+      - "6080:6080"         # noVNC (default display)
+      - "5910-5999:5910-5999"  # Dynamic VNC ports for concurrent sessions
+    env_file:
+      - .env                # Load environment variables from .env file
+    environment:
+      - WIDTH=1024
+      - HEIGHT=768
+      - DISPLAY_NUM=1
+    security_opt:
+      - seccomp:unconfined
+      - apparmor:unconfined
+    volumes:
+      - session-data:/data  # SQLite DB persistence
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+volumes:
+  session-data:

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Computer Use Agent</title>
+    <meta name="description" content="Claude Computer Use Agent — AI-powered computer automation with real-time streaming">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Left Sidebar: Session History -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <h1 class="logo">
+                    <span class="logo-icon">🤖</span>
+                    <span>Computer Use</span>
+                </h1>
+                <button class="btn btn-primary btn-new-session" id="btn-new-session">
+                    <span class="btn-icon">+</span> New Task
+                </button>
+            </div>
+            <div class="session-list" id="session-list">
+                <div class="empty-state">
+                    <p>No sessions yet</p>
+                    <p class="subtle">Click "New Task" to start</p>
+                </div>
+            </div>
+            <div class="sidebar-footer">
+                <div class="status-indicator" id="health-status">
+                    <span class="status-dot"></span>
+                    <span>Connecting...</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Middle Panel: VNC Viewer -->
+        <main class="vnc-panel" id="vnc-panel">
+            <div class="panel-header">
+                <h2>Virtual Desktop</h2>
+                <span class="badge" id="vnc-status">No session</span>
+            </div>
+            <div class="vnc-container" id="vnc-container">
+                <div class="vnc-placeholder">
+                    <div class="placeholder-icon">🖥️</div>
+                    <p>Select or create a session to view the virtual desktop</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Right Panel: Chat & Controls -->
+        <aside class="chat-panel" id="chat-panel">
+            <div class="panel-header">
+                <h2>Agent Chat</h2>
+                <span class="badge" id="agent-status">Idle</span>
+            </div>
+
+            <!-- Chat Messages -->
+            <div class="chat-messages" id="chat-messages">
+                <div class="empty-state">
+                    <p>Start a conversation with the agent</p>
+                </div>
+            </div>
+
+            <!-- Chat Input -->
+            <div class="chat-input-container" id="chat-input-container">
+                <form id="chat-form">
+                    <div class="input-row">
+                        <textarea
+                            id="chat-input"
+                            placeholder="Tell the agent what to do..."
+                            rows="2"
+                            disabled
+                        ></textarea>
+                        <button type="submit" class="btn btn-send" id="btn-send" disabled>
+                            <span>Send</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </aside>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
