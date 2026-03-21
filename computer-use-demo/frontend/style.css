@@ -1161,3 +1161,69 @@ body {
         min-height: 40vh;
     }
 }
+
+/* ====== Dual Workspace (Embedded Mode) ====== */
+body.is-embedded .app-container {
+    flex-wrap: wrap !important;
+    flex-direction: row !important;
+}
+
+body.is-embedded .sidebar {
+    width: 100% !important;
+    min-width: 100% !important;
+    height: 60px !important;
+    max-height: 60px !important;
+    display: flex !important;
+    flex-direction: row !important;
+    padding: 0 16px !important;
+    border-right: none !important;
+    border-bottom: 1px solid var(--border) !important;
+    overflow: hidden !important;
+}
+
+body.is-embedded .sidebar-header,
+body.is-embedded .sidebar-search,
+body.is-embedded .sidebar-section-tasks,
+body.is-embedded .sidebar-section-prompts {
+    display: none !important;
+}
+
+body.is-embedded .sidebar-footer {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    border-top: none !important;
+    padding: 0 !important;
+    background: transparent !important;
+}
+
+body.is-embedded #btn-new-session {
+    margin: 0 !important;
+    width: auto !important;
+    padding: 8px 24px !important;
+}
+
+body.is-embedded #health-status {
+    margin-top: 0 !important;
+}
+
+/* Side-by-Side View inside iframes */
+body.is-embedded .vnc-panel {
+    width: 60% !important;
+    min-width: 60% !important;
+    height: calc(100vh - 60px) !important;
+    min-height: calc(100vh - 60px) !important;
+    flex: none !important;
+    border-right: 1px solid var(--border) !important;
+}
+
+body.is-embedded .chat-panel {
+    width: 40% !important;
+    min-width: 40% !important;
+    height: calc(100vh - 60px) !important;
+    max-height: calc(100vh - 60px) !important;
+    flex: none !important;
+    border-left: none !important;
+}
