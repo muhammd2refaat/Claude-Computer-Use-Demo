@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Concurrent Session Visual Test</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0f1117;
+            color: #e4e6f0;
+            padding: 20px;
+        }
+        .header {
+            text-align: center;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            border-radius: 10px;
+            margin-bottom: 30px;
+        }
+        .header h1 { font-size: 24px; margin-bottom: 10px; }
+        .header p { color: rgba(255,255,255,0.8); font-size: 14px; }
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            max-width: 1800px;
+            margin: 0 auto;
+        }
+        .session-box {
+            background: #161822;
+            border: 2px solid #2a2d45;
+            border-radius: 10px;
+            padding: 20px;
+            min-height: 600px;
+        }
+        .session-title {
+            font-size: 18px;
+            font-weight: 600;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .status {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+        .status.idle { background: #374151; }
+        .status.running { background: #10b981; animation: pulse 2s infinite; }
+        .status.completed { background: #3b82f6; }
+        .status.error { background: #ef4444; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        .controls {
+            margin-bottom: 20px;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #2a2d45;
+            border-radius: 6px;
+            background: #1e2030;
+            color: #e4e6f0;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            background: #7c5bf5;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover { background: #9176ff; box-shadow: 0 0 20px rgba(124, 91, 245, 0.3); }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .log {
+            background: #0a0b10;
+            border: 1px solid #2a2d45;
+            border-radius: 6px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        .log::-webkit-scrollbar { width: 6px; }
+        .log::-webkit-scrollbar-thumb { background: #2a2d45; border-radius: 3px; }
+        .log-entry { margin-bottom: 8px; }
+        .log-entry.user { color: #60a5fa; }
+        .log-entry.assistant { color: #34d399; }
+        .log-entry.tool { color: #fbbf24; }
+        .log-entry.error { color: #f87171; }
+        .log-entry.system { color: #9ca3af; }
+        .timestamp { color: #6b7280; margin-right: 8px; }
+        .instructions {
+            background: #1e2030;
+            border-left: 4px solid #7c5bf5;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 4px;
+        }
+        .instructions h3 { margin-bottom: 10px; font-size: 14px; }
+        .instructions ol { margin-left: 20px; }
+        .instructions li { margin-bottom: 8px; font-size: 13px; line-height: 1.5; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🔥 Concurrent Session Visual Test</h1>
+        <p>Verify TRUE PARALLEL execution — both sessions must run simultaneously!</p>
+    </div>
+
+    <div class="instructions">
+        <h3>📋 Test Instructions:</h3>
+        <ol>
+            <li><strong>Step 1:</strong> Click "Create Session" in both panels</li>
+            <li><strong>Step 2:</strong> Enter prompts (e.g., "Search weather in Tokyo" and "Search weather in New York")</li>
+            <li><strong>Step 3:</strong> Click "Send" in Session 1</li>
+            <li><strong>Step 4:</strong> <strong>IMMEDIATELY</strong> click "Send" in Session 2 (don't wait!)</li>
+            <li><strong>Expected:</strong> Both logs should show activity <strong>at the same time</strong></li>
+            <li><strong>Failure:</strong> If Session 2 waits for Session 1 to finish = NOT PARALLEL ❌</li>
+        </ol>
+    </div>
+
+    <div class="container">
+        <!-- Session 1 -->
+        <div class="session-box">
+            <div class="session-title">
+                <span>Session 1</span>
+                <span class="status idle" id="status-1">Idle</span>
+            </div>
+            <div class="controls">
+                <button id="btn-create-1" onclick="createSession(1)">Create Session</button>
+                <input type="text" id="input-1" placeholder="Enter prompt..." disabled>
+                <button id="btn-send-1" onclick="sendMessage(1)" disabled>Send</button>
+            </div>
+            <div class="log" id="log-1">
+                <div class="log-entry system">Waiting to create session...</div>
+            </div>
+        </div>
+
+        <!-- Session 2 -->
+        <div class="session-box">
+            <div class="session-title">
+                <span>Session 2</span>
+                <span class="status idle" id="status-2">Idle</span>
+            </div>
+            <div class="controls">
+                <button id="btn-create-2" onclick="createSession(2)">Create Session</button>
+                <input type="text" id="input-2" placeholder="Enter prompt..." disabled>
+                <button id="btn-send-2" onclick="sendMessage(2)" disabled>Send</button>
+            </div>
+            <div class="log" id="log-2">
+                <div class="log-entry system">Waiting to create session...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = window.location.origin;
+        const state = {
+            1: { sessionId: null, eventSource: null },
+            2: { sessionId: null, eventSource: null },
+        };
+
+        function log(sessionNum, message, type = 'system') {
+            const logEl = document.getElementById(`log-${sessionNum}`);
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.className = `log-entry ${type}`;
+            entry.innerHTML = `<span class="timestamp">[${time}]</span>${message}`;
+            logEl.appendChild(entry);
+            logEl.scrollTop = logEl.scrollHeight;
+        }
+
+        function updateStatus(sessionNum, status) {
+            const statusEl = document.getElementById(`status-${sessionNum}`);
+            statusEl.className = `status ${status}`;
+            statusEl.textContent = status.charAt(0).toUpperCase() + status.slice(1);
+        }
+
+        async function createSession(sessionNum) {
+            log(sessionNum, '🔨 Creating session...', 'system');
+            document.getElementById(`btn-create-${sessionNum}`).disabled = true;
+
+            try {
+                const resp = await fetch(`${API_BASE}/api/sessions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ title: `Test Session ${sessionNum}` }),
+                });
+                const session = await resp.json();
+                state[sessionNum].sessionId = session.id;
+
+                log(sessionNum, `✅ Session created: ${session.id.slice(0, 8)}`, 'system');
+                log(sessionNum, `📺 Display: :${session.vnc_info.display_num}`, 'system');
+
+                document.getElementById(`input-${sessionNum}`).disabled = false;
+                document.getElementById(`btn-send-${sessionNum}`).disabled = false;
+
+                connectSSE(sessionNum);
+            } catch (err) {
+                log(sessionNum, `❌ Failed to create session: ${err.message}`, 'error');
+                document.getElementById(`btn-create-${sessionNum}`).disabled = false;
+            }
+        }
+
+        async function sendMessage(sessionNum) {
+            const input = document.getElementById(`input-${sessionNum}`);
+            const text = input.value.trim();
+            if (!text) return;
+
+            const sessionId = state[sessionNum].sessionId;
+            log(sessionNum, `👤 You: ${text}`, 'user');
+            input.value = '';
+            document.getElementById(`btn-send-${sessionNum}`).disabled = true;
+            updateStatus(sessionNum, 'running');
+
+            try {
+                await fetch(`${API_BASE}/api/sessions/${sessionId}/messages`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text }),
+                });
+                log(sessionNum, '⏳ Agent processing...', 'system');
+            } catch (err) {
+                log(sessionNum, `❌ Failed to send: ${err.message}`, 'error');
+                document.getElementById(`btn-send-${sessionNum}`).disabled = false;
+                updateStatus(sessionNum, 'error');
+            }
+        }
+
+        function connectSSE(sessionNum) {
+            const sessionId = state[sessionNum].sessionId;
+            const url = `${API_BASE}/api/sessions/${sessionId}/stream`;
+            const es = new EventSource(url);
+            state[sessionNum].eventSource = es;
+
+            es.addEventListener('text', (e) => {
+                const data = JSON.parse(e.data);
+                log(sessionNum, `🤖 Agent: ${data.text}`, 'assistant');
+            });
+
+            es.addEventListener('tool_use', (e) => {
+                const data = JSON.parse(e.data);
+                log(sessionNum, `🔧 Using: ${data.name}`, 'tool');
+            });
+
+            es.addEventListener('tool_result', (e) => {
+                const data = JSON.parse(e.data);
+                if (data.output) log(sessionNum, `📤 ${data.output.slice(0, 100)}`, 'tool');
+                if (data.has_screenshot) log(sessionNum, '📸 Screenshot captured', 'tool');
+            });
+
+            es.addEventListener('done', () => {
+                log(sessionNum, '✅ Task completed!', 'system');
+                updateStatus(sessionNum, 'completed');
+                document.getElementById(`btn-send-${sessionNum}`).disabled = false;
+            });
+
+            es.addEventListener('error', (e) => {
+                if (e.data) {
+                    const data = JSON.parse(e.data);
+                    log(sessionNum, `❌ Error: ${data.message}`, 'error');
+                }
+                updateStatus(sessionNum, 'error');
+            });
+        }
+    </script>
+</body>
+</html>

@@ -16,13 +16,19 @@ class _BashSession:
     _timeout: float = 120.0  # seconds
     _sentinel: str = "<<exit>>"
 
-    def __init__(self):
+    def __init__(self, env_override: dict[str, str] | None = None):
         self._started = False
         self._timed_out = False
+        self._env_override = env_override or {}
 
     async def start(self):
         if self._started:
             return
+
+        # Build env with overrides so concurrent sessions use
+        # their own DISPLAY, DISPLAY_NUM etc.
+        env = os.environ.copy()
+        env.update(self._env_override)
 
         self._process = await asyncio.create_subprocess_shell(
             self.command,
@@ -32,6 +38,7 @@ class _BashSession:
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
 
         self._started = True
@@ -114,6 +121,13 @@ class BashTool20250124(BaseAnthropicTool):
 
     def __init__(self):
         self._session = None
+        # Capture DISPLAY env at init time for concurrent session isolation.
+        # _create_tools_for_display sets these before tool creation.
+        self._env_override: dict[str, str] = {}
+        for key in ("DISPLAY", "DISPLAY_NUM", "WIDTH", "HEIGHT"):
+            val = os.environ.get(key)
+            if val is not None:
+                self._env_override[key] = val
         super().__init__()
 
     def to_params(self) -> Any:
@@ -128,13 +142,13 @@ class BashTool20250124(BaseAnthropicTool):
         if restart:
             if self._session:
                 self._session.stop()
-            self._session = _BashSession()
+            self._session = _BashSession(env_override=self._env_override)
             await self._session.start()
 
             return ToolResult(system="tool has been restarted.")
 
         if self._session is None:
-            self._session = _BashSession()
+            self._session = _BashSession(env_override=self._env_override)
             await self._session.start()
 
         if command is not None:
@@ -145,3 +159,4 @@ class BashTool20250124(BaseAnthropicTool):
 
 class BashTool20241022(BashTool20250124):
     api_type: Literal["bash_20250124"] = "bash_20250124"  # pyright: ignore[reportIncompatibleVariableOverride]
+

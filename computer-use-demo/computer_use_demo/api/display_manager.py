@@ -31,6 +31,8 @@ class DisplayAllocation:
     xvfb_pid: int | None = None
     x11vnc_pid: int | None = None
     websockify_pid: int | None = None
+    mutter_pid: int | None = None
+    tint2_pid: int | None = None
 
 
 class DisplayManager:
@@ -85,6 +87,8 @@ class DisplayManager:
 
         try:
             await self._start_xvfb(allocation)
+            await self._start_mutter(allocation)
+            await self._start_tint2(allocation)
             await self._start_x11vnc(allocation)
             await self._start_websockify(allocation)
         except Exception:
@@ -110,29 +114,21 @@ class DisplayManager:
         if not allocation:
             return
 
-        # Kill websockify
-        if allocation.websockify_pid:
-            try:
-                os.kill(allocation.websockify_pid, signal.SIGTERM)
-                logger.info(f"Killed websockify (pid={allocation.websockify_pid})")
-            except ProcessLookupError:
-                pass
-
-        # Kill x11vnc
-        if allocation.x11vnc_pid:
-            try:
-                os.kill(allocation.x11vnc_pid, signal.SIGTERM)
-                logger.info(f"Killed x11vnc (pid={allocation.x11vnc_pid})")
-            except ProcessLookupError:
-                pass
-
-        # Kill Xvfb
-        if allocation.xvfb_pid:
-            try:
-                os.kill(allocation.xvfb_pid, signal.SIGTERM)
-                logger.info(f"Killed Xvfb (pid={allocation.xvfb_pid})")
-            except ProcessLookupError:
-                pass
+        # Kill processes in reverse order of startup
+        for pid_attr, name in [
+            ('websockify_pid', 'websockify'),
+            ('x11vnc_pid', 'x11vnc'),
+            ('tint2_pid', 'tint2'),
+            ('mutter_pid', 'mutter'),
+            ('xvfb_pid', 'Xvfb'),
+        ]:
+            pid = getattr(allocation, pid_attr, None)
+            if pid:
+                try:
+                    os.kill(pid, signal.SIGTERM)
+                    logger.info(f"Killed {name} (pid={pid})")
+                except ProcessLookupError:
+                    pass
 
         # Clean up X lock file
         lock_file = f"/tmp/.X{display_num}-lock"
@@ -256,6 +252,49 @@ class DisplayManager:
             )
 
         logger.info(f"websockify started on port {ws_port} (pid={proc.pid})")
+
+    async def _start_mutter(self, allocation: DisplayAllocation) -> None:
+        """Start a mutter window manager for the given display."""
+        display_num = allocation.display_num
+
+        env = os.environ.copy()
+        env['DISPLAY'] = f':{display_num}'
+        env['XDG_SESSION_TYPE'] = 'x11'
+
+        proc = await asyncio.create_subprocess_exec(
+            "mutter", "--replace", "--sm-disable",
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=env,
+        )
+        allocation.mutter_pid = proc.pid
+
+        # Give mutter time to start and register
+        await asyncio.sleep(1.5)
+
+        logger.info(f"mutter started on :{display_num} (pid={proc.pid})")
+
+    async def _start_tint2(self, allocation: DisplayAllocation) -> None:
+        """Start a tint2 taskbar for the given display."""
+        display_num = allocation.display_num
+        home = os.environ.get('HOME', '/home/computeruse')
+        tint2rc = os.path.join(home, '.config', 'tint2', 'tint2rc')
+
+        env = os.environ.copy()
+        env['DISPLAY'] = f':{display_num}'
+
+        proc = await asyncio.create_subprocess_exec(
+            "tint2", "-c", tint2rc,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.DEVNULL,
+            env=env,
+        )
+        allocation.tint2_pid = proc.pid
+
+        # Give tint2 time to start
+        await asyncio.sleep(0.5)
+
+        logger.info(f"tint2 started on :{display_num} (pid={proc.pid})")
 
 # Global singleton instance
 display_manager = DisplayManager()

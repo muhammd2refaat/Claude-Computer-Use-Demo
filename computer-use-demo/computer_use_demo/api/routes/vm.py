@@ -16,10 +16,22 @@ async def get_vnc_info(session_id: str):
     """Get VNC connection info for a session's virtual display.
 
     Returns the VNC port and noVNC URL for embedding in an iframe.
+    If the session exists in DB but isn't active, it will be auto-restored.
     """
     session = await session_manager.get_session_info(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
+
+    # Auto-restore session if not active (re-allocates display + VNC)
+    if not session_manager.is_active(session_id):
+        try:
+            session = await session_manager.restore_session(session_id)
+        except Exception as e:
+            logger.error(f"Failed to restore session {session_id}: {e}")
+            raise HTTPException(
+                status_code=503,
+                detail="Could not restore session display. Try creating a new session.",
+            )
 
     if not session.get("display_num") or not session.get("vnc_port"):
         raise HTTPException(
