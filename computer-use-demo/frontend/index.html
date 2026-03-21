@@ -249,6 +249,7 @@
 
         // Hide "Dual Workspace" button if we are already inside a split screen iframe
         if (window.location.search.includes('embedded=1')) {
+            document.body.classList.add('is-embedded');
             document.getElementById('btn-split-screen').style.display = 'none';
         }
     </script>
