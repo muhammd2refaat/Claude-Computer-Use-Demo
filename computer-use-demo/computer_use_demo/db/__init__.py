@@ -1,17 +1,14 @@
-"""Database - Re-export from db layer.
+"""Database layer - connection pooling and repository operations."""
 
-DEPRECATED: This module is kept for backward compatibility.
-Use computer_use_demo.db instead.
-"""
-
-# Re-export for backward compatibility
-from computer_use_demo.db import (
+from computer_use_demo.db.database import (
     ConnectionPool,
     get_pool,
     get_connection,
     init_db,
     close_db,
     get_pool_stats,
+)
+from computer_use_demo.db.repository import (
     create_session,
     get_session,
     list_sessions,
@@ -23,12 +20,14 @@ from computer_use_demo.db import (
 )
 
 __all__ = [
+    # Database
     "ConnectionPool",
     "get_pool",
     "get_connection",
     "init_db",
     "close_db",
     "get_pool_stats",
+    # Repository
     "create_session",
     "get_session",
     "list_sessions",

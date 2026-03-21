@@ -2,20 +2,21 @@
 
 import asyncio
 import json
-import logging
 
 from fastapi import APIRouter, HTTPException, Request
 from sse_starlette.sse import EventSourceResponse
 
-from ..models import (
+from computer_use_demo.schemas import (
     MessageListResponse,
     MessageResponse,
     MessageSentResponse,
     SendMessageRequest,
 )
-from ..session_manager import session_manager
+from computer_use_demo.services.agent import agent_service
+from computer_use_demo.services.session import session_service
+from computer_use_demo.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/sessions/{session_id}", tags=["agent"])
 
 
@@ -26,7 +27,7 @@ async def send_message(session_id: str, request: SendMessageRequest):
     The agent processes asynchronously; use the /stream endpoint for real-time updates.
     """
     try:
-        message_id = await session_manager.send_message(session_id, request.text)
+        message_id = await agent_service.send_message(session_id, request.text)
         return MessageSentResponse(message_id=message_id, status="processing")
     except KeyError:
         raise HTTPException(status_code=404, detail="Session not found or not active")
@@ -38,7 +39,7 @@ async def send_message(session_id: str, request: SendMessageRequest):
 async def get_messages(session_id: str):
     """Get chat history for a session."""
     try:
-        messages = await session_manager.get_messages(session_id)
+        messages = await session_service.get_messages(session_id)
         items = [
             MessageResponse(
                 id=m["id"],
@@ -69,14 +70,14 @@ async def stream_events(session_id: str, request: Request):
     """
     try:
         # Verify session exists in DB
-        session = await session_manager.get_session_info(session_id)
+        session = await session_service.get_session_info(session_id)
         if not session:
             raise HTTPException(status_code=404, detail="Session not found")
 
         # Auto-restore session if not active in memory
-        if not session_manager.is_active(session_id):
+        if not session_service.is_active(session_id):
             try:
-                await session_manager.restore_session(session_id)
+                await session_service.restore_session(session_id)
             except Exception as e:
                 logger.warning(f"Could not restore session {session_id}: {e}")
                 # Still proceed — we'll just yield an empty stream
@@ -85,7 +86,7 @@ async def stream_events(session_id: str, request: Request):
 
     async def event_generator():
         try:
-            async for event in session_manager.get_event_stream(session_id):
+            async for event in agent_service.get_event_stream(session_id):
                 if await request.is_disconnected():
                     break
                 yield {
@@ -108,7 +109,7 @@ async def stream_events(session_id: str, request: Request):
 async def stop_agent(session_id: str):
     """Stop a running agent task for this session."""
     try:
-        success = await session_manager.stop_agent(session_id)
+        success = await agent_service.stop_agent(session_id)
         if success:
             return {"status": "stopped", "message": "Agent task cancelled"}
         else:
@@ -121,8 +122,7 @@ async def stop_agent(session_id: str):
 async def restore_session(session_id: str):
     """Restore a session from database (reactivate it after restart)."""
     try:
-        session = await session_manager.restore_session(session_id)
+        session = await session_service.restore_session(session_id)
         return {"status": "restored", "session": session}
     except KeyError as e:
         raise HTTPException(status_code=404, detail=str(e))
-
