@@ -1,19 +1,18 @@
 """Session management API routes."""
 
-import logging
-
 from fastapi import APIRouter, HTTPException
 
-from ..models import (
+from computer_use_demo.schemas import (
     CreateSessionRequest,
     SessionListResponse,
     SessionResponse,
     SessionStatus,
     VNCInfo,
 )
-from ..session_manager import session_manager
+from computer_use_demo.services.session import session_service
+from computer_use_demo.utils.logger import setup_logger
 
-logger = logging.getLogger(__name__)
+logger = setup_logger(__name__)
 router = APIRouter(prefix="/api/sessions", tags=["sessions"])
 
 
@@ -40,7 +39,7 @@ def _session_to_response(session: dict) -> SessionResponse:
 async def create_session(request: CreateSessionRequest = CreateSessionRequest()):
     """Create a new agent task session with its own virtual display."""
     try:
-        session = await session_manager.create_session(title=request.title)
+        session = await session_service.create_session(title=request.title)
         return _session_to_response(session)
     except RuntimeError as e:
         raise HTTPException(status_code=503, detail=str(e))
@@ -49,7 +48,7 @@ async def create_session(request: CreateSessionRequest = CreateSessionRequest())
 @router.get("", response_model=SessionListResponse)
 async def list_sessions():
     """List all sessions."""
-    sessions = await session_manager.list_sessions()
+    sessions = await session_service.list_sessions()
     items = [_session_to_response(s) for s in sessions]
     return SessionListResponse(sessions=items, total=len(items))
 
@@ -57,7 +56,7 @@ async def list_sessions():
 @router.get("/{session_id}", response_model=SessionResponse)
 async def get_session(session_id: str):
     """Get details of a specific session."""
-    session = await session_manager.get_session_info(session_id)
+    session = await session_service.get_session_info(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
     return _session_to_response(session)
@@ -66,6 +65,6 @@ async def get_session(session_id: str):
 @router.delete("/{session_id}", status_code=204)
 async def delete_session(session_id: str):
     """Delete a session and clean up its resources."""
-    deleted = await session_manager.delete_session(session_id)
+    deleted = await session_service.delete_session(session_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="Session not found")
