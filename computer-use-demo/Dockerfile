@@ -95,6 +95,13 @@ COPY --chown=$USERNAME:$USERNAME image/ $HOME
 COPY --chown=$USERNAME:$USERNAME computer_use_demo/ $HOME/computer_use_demo/
 COPY --chown=$USERNAME:$USERNAME frontend/ $HOME/frontend/
 
+# Install Firefox wrapper for concurrent session isolation
+# Each session gets its own Firefox profile to avoid "Firefox is already running" errors
+RUN sudo cp $HOME/firefox_wrapper.sh /usr/local/bin/firefox && \
+    sudo chmod +x /usr/local/bin/firefox && \
+    sudo cp $HOME/firefox_wrapper.sh /usr/local/bin/firefox-esr && \
+    sudo chmod +x /usr/local/bin/firefox-esr
+
 ARG DISPLAY_NUM=1
 ARG HEIGHT=768
 ARG WIDTH=1024

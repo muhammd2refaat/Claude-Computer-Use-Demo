@@ -1,12 +1,14 @@
 services:
   computer-use:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     ports:
-      - "8000:8000"         # FastAPI
-      - "6080:6080"         # noVNC (default display)
-      - "5910-5999:5910-5999"  # Dynamic VNC ports for concurrent sessions
+      - "8000:8000"               # FastAPI backend
+      - "6080:6080"               # noVNC default display
+      - "5910-5999:5910-5999"     # Dynamic VNC WebSocket ports for concurrent sessions
     env_file:
-      - .env                # Load environment variables from .env file
+      - .env
     environment:
       - WIDTH=1024
       - HEIGHT=768
@@ -15,7 +17,7 @@ services:
       - seccomp:unconfined
       - apparmor:unconfined
     volumes:
-      - session-data:/data  # SQLite DB persistence
+      - session-data:/data        # SQLite DB persistence
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
@@ -23,6 +25,11 @@ services:
       timeout: 10s
       retries: 3
       start_period: 30s
+    deploy:
+      resources:
+        limits:
+          cpus: '4.0'
+          memory: 4G
 
 volumes:
   session-data:
