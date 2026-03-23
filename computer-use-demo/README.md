@@ -1,6 +1,17 @@
+**Author: Muhammed Refaat**
+
 # Computer Use Agent - Backend API
 
-**Author: Muhammed Refaat**
+# 🎥 Demo Video 
+
+## Watch the full system demonstration (including concurrent sessions and real-time streaming):
+
+👉 <https://drive.google.com/file/d/18Qzp3rLKeQTIXVFz1zeXP_168Sbu9guS/view?usp=drivesdk>
+
+### Demonstrated Use Cases
+
+- ✅ Use Case 1: Weather search in Dubai
+- ✅ Use Case 2: Concurrent sessions (Tokyo & New York running in parallel)
 
 A production-ready FastAPI backend for Claude Computer Use agent sessions with real-time streaming, concurrent session support, and a modern web frontend.
 ---
@@ -240,6 +251,25 @@ services/
 ---
 
 ## Quick Start
+
+---
+
+## 🌐 Deployment (Optional)
+
+A deployed version of the system is available for demonstration purposes:
+
+🔗 Live Demo: https://computer-user-demo.duckdns.org/?token=fV-vDxGz1caJI7PCcvPwWCmmerEhRRZwOGpUK3yGXo8
+
+This deployment includes:
+- HTTPS-secured access
+- Real-time streaming (SSE)
+- Concurrent session execution
+- VNC access via WebSocket proxy
+
+**Note:**
+The demo video and evaluation are based on the local Docker environment to ensure stable VNC execution and consistent performance.
+
+For local development and full feature demonstration, please use the Docker setup described above.
 
 ### Prerequisites
 
